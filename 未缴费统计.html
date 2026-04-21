@@ -1,0 +1,770 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+  <title>📊 校园缴费情况自动统计 · 稳定截图复制 · 年级分班</title>
+  <!-- SheetJS 解析 Excel -->
+  <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      font-family: 'Segoe UI', 'Roboto', system-ui, sans-serif;
+    }
+    body {
+      background: linear-gradient(145deg, #f6f9fc 0%, #e9f1f8 100%);
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      padding: 24px 16px 40px;
+      margin: 0;
+    }
+    .app-container {
+      max-width: 1400px;
+      width: 100%;
+    }
+    .header {
+      margin-bottom: 24px;
+    }
+    h1 {
+      font-weight: 600;
+      font-size: 2.4rem;
+      color: #1a3e60;
+      letter-spacing: -0.01em;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 8px;
+    }
+    .subhead {
+      color: #2c5a7a;
+      font-size: 1.1rem;
+      font-weight: 400;
+      border-left: 5px solid #3a8bb9;
+      padding-left: 18px;
+      margin-top: 4px;
+    }
+    .drop-zone {
+      background: rgba(255, 255, 255, 0.75);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 3px dashed #3a8bb9;
+      border-radius: 36px;
+      padding: 40px 24px;
+      text-align: center;
+      transition: all 0.2s ease;
+      box-shadow: 0 12px 28px rgba(0, 20, 40, 0.08);
+      cursor: pointer;
+      margin-bottom: 30px;
+    }
+    .drop-zone:hover, .drop-zone.drag-over {
+      background: rgba(255, 255, 255, 0.9);
+      border-color: #1e6f9f;
+      box-shadow: 0 18px 32px rgba(26, 62, 96, 0.12);
+      transform: scale(1.01);
+    }
+    .drop-icon {
+      font-size: 56px;
+      margin-bottom: 8px;
+      opacity: 0.8;
+    }
+    .drop-text {
+      font-size: 1.5rem;
+      font-weight: 500;
+      color: #1a3e60;
+      margin-bottom: 8px;
+    }
+    .drop-hint {
+      color: #4a6f8a;
+      font-size: 1rem;
+    }
+    .file-info {
+      margin-top: 16px;
+      font-weight: 500;
+      color: #1e6f9f;
+      background: #d9eaf5;
+      display: inline-block;
+      padding: 6px 22px;
+      border-radius: 40px;
+      font-size: 0.95rem;
+    }
+    #fileInput { display: none; }
+    .status-message {
+      padding: 12px 20px;
+      border-radius: 50px;
+      margin: 16px 0 10px;
+      font-weight: 500;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      background: white;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.02);
+    }
+    .error-message {
+      background: #fee9e7;
+      color: #b53b2e;
+      border-left: 6px solid #d9534f;
+    }
+    .info-message {
+      background: #e3f0fa;
+      color: #1a5f8a;
+    }
+    .results-wrapper { margin-top: 20px; }
+    .summary-bar {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      margin-bottom: 24px;
+      flex-wrap: wrap;
+    }
+    .grade-count {
+      background: #1e3b55;
+      color: white;
+      padding: 6px 20px;
+      border-radius: 40px;
+      font-weight: 500;
+      font-size: 1rem;
+      box-shadow: 0 6px 12px rgba(0,0,0,0.05);
+    }
+    .reset-btn {
+      background: transparent;
+      border: 1.5px solid #2c5a7a;
+      color: #2c5a7a;
+      padding: 8px 22px;
+      border-radius: 36px;
+      font-weight: 600;
+      font-size: 0.95rem;
+      cursor: pointer;
+      transition: 0.15s;
+    }
+    .reset-btn:hover {
+      background: #2c5a7a;
+      color: white;
+    }
+    .grade-card {
+      background: white;
+      border-radius: 32px;
+      padding: 24px 24px 28px;
+      margin-bottom: 36px;
+      box-shadow: 0 16px 30px -8px rgba(20, 50, 70, 0.12);
+      border-top: 8px solid;
+    }
+    .grade-card[data-grade-index="0"] { border-top-color: #2a6d9c; background: linear-gradient(white, #f5faff); }
+    .grade-card[data-grade-index="1"] { border-top-color: #1f8a7a; background: linear-gradient(white, #f2fbf9); }
+    .grade-card[data-grade-index="2"] { border-top-color: #b47c3c; background: linear-gradient(white, #fefaf3); }
+    .grade-card[data-grade-index="3"] { border-top-color: #9b6b9e; background: linear-gradient(white, #faf5fc); }
+    .grade-card[data-grade-index="4"] { border-top-color: #c05a5a; background: linear-gradient(white, #fef6f6); }
+    .grade-title {
+      font-size: 1.9rem;
+      font-weight: 700;
+      margin-bottom: 16px;
+      display: flex;
+      align-items: baseline;
+      flex-wrap: wrap;
+      gap: 10px 20px;
+    }
+    .grade-main-title {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .grade-deadline {
+      margin-left: auto;
+      font-size: 1rem;
+      font-weight: 400;
+      color: #2c5a7a;
+      background: rgba(58, 139, 185, 0.1);
+      padding: 6px 18px;
+      border-radius: 36px;
+      white-space: nowrap;
+    }
+    .table-responsive {
+      overflow-x: auto;
+      margin: 0 -4px 20px;
+      padding-bottom: 6px;
+    }
+    .class-table {
+      width: 100%;
+      border-collapse: separate;
+      border-spacing: 8px 6px;
+      min-width: max-content;
+    }
+    .class-table th {
+      background: #1e3b55;
+      color: white;
+      font-weight: 600;
+      font-size: 1.2rem;
+      padding: 16px 18px;
+      border-radius: 24px 24px 12px 12px;
+      text-align: center;
+      min-width: 120px;
+    }
+    .class-table td {
+      background: #fbfdff;
+      padding: 12px 16px;
+      border-radius: 18px;
+      text-align: center;
+      font-size: 1.05rem;
+      font-weight: 500;
+      color: #173e57;
+      box-shadow: inset 0 1px 3px rgba(0,0,0,0.02), 0 2px 6px rgba(55, 84, 110, 0.04);
+      border: 1px solid #eef3f9;
+    }
+    .empty-cell { color: #9bb7cf; }
+    .grade-actions {
+      display: flex;
+      justify-content: flex-end;
+      margin-top: 12px;
+    }
+    .copy-grade-btn {
+      background: #2a6d9c;
+      border: none;
+      color: white;
+      padding: 12px 28px;
+      border-radius: 48px;
+      font-weight: 600;
+      font-size: 1rem;
+      cursor: pointer;
+      box-shadow: 0 8px 16px rgba(42, 109, 156, 0.2);
+      transition: 0.15s;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .copy-grade-btn:hover {
+      background: #1e5f88;
+      transform: scale(1.02);
+    }
+    .global-copy-section {
+      margin-top: 30px;
+      text-align: center;
+    }
+    .copy-all-btn {
+      background: #1e3b55;
+      border: none;
+      color: white;
+      padding: 18px 42px;
+      border-radius: 60px;
+      font-weight: 700;
+      font-size: 1.35rem;
+      cursor: pointer;
+      box-shadow: 0 12px 28px rgba(0,20,40,0.25);
+      transition: 0.15s;
+      display: inline-flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .copy-all-btn:hover {
+      background: #0f2a3f;
+      transform: translateY(-3px);
+    }
+    .no-data-msg {
+      text-align: center;
+      padding: 40px;
+      font-size: 1.3rem;
+      color: #486f8c;
+    }
+    .footer-note {
+      margin-top: 20px;
+      color: #527a98;
+      text-align: right;
+      font-size: 0.9rem;
+    }
+    .copy-toast {
+      position: fixed;
+      bottom: 30px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #1e3b55;
+      color: white;
+      padding: 12px 32px;
+      border-radius: 60px;
+      font-weight: 500;
+      box-shadow: 0 12px 28px rgba(0,0,0,0.2);
+      z-index: 9999;
+      transition: opacity 0.2s;
+    }
+  </style>
+</head>
+<body>
+<div class="app-container">
+  <div class="header">
+    <h1>📋 校园缴费情况自动统计</h1>
+    <div class="subhead">拖拽Excel · 自动识别表头(前7行) · 稳定截图复制（Canvas绘制）</div>
+  </div>
+  <div class="drop-zone" id="dropZone">
+    <div class="drop-icon">📂⬇️</div>
+    <div class="drop-text">拖放 Excel 文件到这里</div>
+    <div class="drop-hint">支持 .xlsx .xls .csv · 表头含“姓名/学生姓名、年级、班级”</div>
+    <div id="fileNameDisplay" class="file-info"></div>
+  </div>
+  <input type="file" id="fileInput" accept=".xlsx, .xls, .csv">
+  <div id="statusArea" class="status-message info-message" style="display: none;"></div>
+  <div class="results-wrapper">
+    <div class="summary-bar" id="summaryBar" style="display: none;">
+      <div class="grade-count" id="gradeCountDisplay"></div>
+      <button class="reset-btn" id="clearBtn">🗑️ 清除 / 重新上传</button>
+    </div>
+    <div id="resultContainer"></div>
+  </div>
+  <div class="global-copy-section" id="globalCopySection" style="display: none;">
+    <button class="copy-all-btn" id="copyAllBtn">📸 复制所有年级名单截图</button>
+  </div>
+  <div class="footer-note">✨ 空单元格留白 · 点击按钮用Canvas绘制图片并复制到剪贴板</div>
+</div>
+
+<script>
+  (function(){
+    "use strict";
+
+    const dropZone = document.getElementById('dropZone');
+    const fileInput = document.getElementById('fileInput');
+    const fileNameDisplay = document.getElementById('fileNameDisplay');
+    const statusArea = document.getElementById('statusArea');
+    const resultContainer = document.getElementById('resultContainer');
+    const summaryBar = document.getElementById('summaryBar');
+    const gradeCountDisplay = document.getElementById('gradeCountDisplay');
+    const clearBtn = document.getElementById('clearBtn');
+    const globalCopySection = document.getElementById('globalCopySection');
+    const copyAllBtn = document.getElementById('copyAllBtn');
+
+    let currentGradeMap = null;
+    let sortedGradesCache = [];
+    let gradeDataCache = new Map();
+
+    // ---------- 班级顺序定义（一年级～高三）----------
+    const GRADE_ORDER = [
+      '一年级', '二年级', '三年级', '四年级', '五年级', '六年级',
+      '七年级', '八年级', '九年级',
+      '高一', '高二', '高三'
+    ];
+    
+    function getGradeOrderIndex(gradeStr) {
+      const normalized = String(gradeStr).trim();
+      const idx = GRADE_ORDER.indexOf(normalized);
+      if (idx !== -1) return idx;
+      // 尝试匹配包含数字的简写，如“1年级”等
+      const numMatch = normalized.match(/\d+/);
+      if (numMatch) {
+        const num = parseInt(numMatch[0], 10);
+        if (normalized.includes('高')) {
+          if (num === 1) return GRADE_ORDER.indexOf('高一');
+          if (num === 2) return GRADE_ORDER.indexOf('高二');
+          if (num === 3) return GRADE_ORDER.indexOf('高三');
+        } else if (normalized.includes('初') || normalized.includes('七')||normalized.includes('八')||normalized.includes('九')) {
+          if (num === 7) return GRADE_ORDER.indexOf('七年级');
+          if (num === 8) return GRADE_ORDER.indexOf('八年级');
+          if (num === 9) return GRADE_ORDER.indexOf('九年级');
+        } else {
+          if (num >=1 && num <=6) return GRADE_ORDER.indexOf(`${num}年级`.replace(/\d+/, (n)=>['一','二','三','四','五','六'][n-1]));
+        }
+      }
+      return GRADE_ORDER.length + 999; // 放最后
+    }
+
+    // 班级排序：优先按数字，再按字符串
+    function compareClass(a, b) {
+      const numA = parseInt(String(a).match(/\d+/)?.[0] || '999');
+      const numB = parseInt(String(b).match(/\d+/)?.[0] || '999');
+      if (numA !== numB) return numA - numB;
+      return String(a).localeCompare(String(b), 'zh', { numeric: true });
+    }
+
+    // 年级排序使用自定义顺序
+    function compareGrade(a, b) {
+      return getGradeOrderIndex(a) - getGradeOrderIndex(b);
+    }
+
+    // ---------- 轻提示 ----------
+    function showToast(msg, duration = 2500) {
+      const toast = document.createElement('div');
+      toast.className = 'copy-toast';
+      toast.textContent = msg;
+      document.body.appendChild(toast);
+      setTimeout(() => toast.style.opacity = '0', duration-300);
+      setTimeout(() => { if(toast.parentNode) toast.remove(); }, duration);
+    }
+
+    function showStatus(msg, isError = false) {
+      statusArea.style.display = 'flex';
+      statusArea.textContent = msg;
+      statusArea.className = `status-message ${isError ? 'error-message' : 'info-message'}`;
+    }
+    function hideStatus() { statusArea.style.display = 'none'; }
+
+    function resetUI() {
+      resultContainer.innerHTML = '';
+      summaryBar.style.display = 'none';
+      globalCopySection.style.display = 'none';
+      fileNameDisplay.textContent = '';
+      currentGradeMap = null;
+      sortedGradesCache = [];
+      gradeDataCache.clear();
+      hideStatus();
+    }
+
+    function getCurrentDateTime() {
+      const now = new Date();
+      return `${now.getFullYear()}年${String(now.getMonth()+1).padStart(2,'0')}月${String(now.getDate()).padStart(2,'0')}日 ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+    }
+
+    // 表头检测
+    function detectHeaderRow(rows) {
+      const maxSearch = Math.min(7, rows.length);
+      for (let r=0; r<maxSearch; r++) {
+        const row = rows[r];
+        if (!row) continue;
+        let nameIdx=-1, gradeIdx=-1, classIdx=-1;
+        for (let c=0; c<row.length; c++) {
+          const val = String(row[c]||'').trim();
+          if (!val) continue;
+          if (nameIdx===-1 && (val.includes('姓名')||val.includes('学生姓名'))) nameIdx=c;
+          if (gradeIdx===-1 && val.includes('年级')) gradeIdx=c;
+          if (classIdx===-1 && val.includes('班级')) classIdx=c;
+        }
+        if (nameIdx!==-1 && gradeIdx!==-1 && classIdx!==-1) return { headerRowIndex: r, nameCol: nameIdx, gradeCol: gradeIdx, classCol: classIdx };
+      }
+      return null;
+    }
+
+    function formatGradeTitle(g) {
+      const s = String(g).trim();
+      return s.includes('年级') ? s : s+'年级';
+    }
+
+    function parseAndBuildMap(workbook) {
+      const sheet = workbook.Sheets[workbook.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(sheet, { header:1 });
+      if (!rows.length) throw new Error('表格为空');
+      const h = detectHeaderRow(rows);
+      if (!h) throw new Error('前7行未找到姓名/年级/班级列');
+      const {headerRowIndex, nameCol, gradeCol, classCol} = h;
+      const map = new Map();
+      for (let r=headerRowIndex+1; r<rows.length; r++) {
+        const row = rows[r];
+        if (!row) continue;
+        const name = String(row[nameCol]||'').trim();
+        const grade = String(row[gradeCol]||'').trim();
+        const cls = String(row[classCol]||'').trim();
+        if (!name || !grade || !cls) continue;
+        if (!map.has(grade)) map.set(grade, new Map());
+        const classMap = map.get(grade);
+        if (!classMap.has(cls)) classMap.set(cls, []);
+        classMap.get(cls).push(name);
+      }
+      if (map.size===0) throw new Error('无有效数据');
+      return map;
+    }
+
+    // 渲染HTML（去掉“x个班”徽章）
+    function renderHTML(gradeMap) {
+      resultContainer.innerHTML = '';
+      if (!gradeMap || gradeMap.size===0) {
+        resultContainer.innerHTML = '<div class="no-data-msg">📭 没有可展示的数据</div>';
+        summaryBar.style.display = 'none';
+        globalCopySection.style.display = 'none';
+        return;
+      }
+
+      const sortedGrades = Array.from(gradeMap.keys()).sort(compareGrade);
+      sortedGradesCache = sortedGrades;
+      gradeDataCache.clear();
+
+      let totalClasses=0, totalStudents=0;
+      gradeMap.forEach(cm => { totalClasses+=cm.size; cm.forEach(n=> totalStudents+=n.length); });
+      gradeCountDisplay.textContent = `👥 ${sortedGrades.length} 个年级 · ${totalClasses} 个班级 · ${totalStudents} 名学生`;
+      summaryBar.style.display = 'flex';
+      globalCopySection.style.display = 'flex';
+
+      const currentTime = getCurrentDateTime();
+
+      sortedGrades.forEach((grade, idx) => {
+        const classMap = gradeMap.get(grade);
+        const sortedClasses = Array.from(classMap.keys()).sort(compareClass);
+        const namesMatrix = sortedClasses.map(cls => classMap.get(cls) || []);
+        const maxRows = Math.max(...namesMatrix.map(a=>a.length), 0);
+        let gradeCount = 0;
+        namesMatrix.forEach(a=> gradeCount+=a.length);
+
+        gradeDataCache.set(grade, { sortedClasses, namesMatrix, maxRows, gradeCount });
+
+        const card = document.createElement('div');
+        card.className = 'grade-card';
+        card.setAttribute('data-grade-index', (idx%5).toString());
+
+        const titleDiv = document.createElement('div');
+        titleDiv.className = 'grade-title';
+        // 修改文案为“未缴费名单”，并移除班级数徽章
+        titleDiv.innerHTML = `
+          <span class="grade-main-title">${formatGradeTitle(grade)}未缴费名单</span>
+          <span class="grade-deadline">📅 截止${currentTime} 共${gradeCount}人未缴费</span>
+        `;
+        card.appendChild(titleDiv);
+
+        const tableResp = document.createElement('div');
+        tableResp.className = 'table-responsive';
+        const table = document.createElement('table');
+        table.className = 'class-table';
+        const thead = document.createElement('thead');
+        const hr = document.createElement('tr');
+        sortedClasses.forEach(cls => { const th=document.createElement('th'); th.textContent=cls; hr.appendChild(th); });
+        thead.appendChild(hr);
+        table.appendChild(thead);
+
+        const tbody = document.createElement('tbody');
+        for (let r=0; r<maxRows; r++) {
+          const tr = document.createElement('tr');
+          sortedClasses.forEach((cls, colIdx) => {
+            const td = document.createElement('td');
+            if (r < namesMatrix[colIdx].length) {
+              td.textContent = namesMatrix[colIdx][r];
+            } else {
+              td.textContent = '';
+              td.classList.add('empty-cell');
+            }
+            tr.appendChild(td);
+          });
+          tbody.appendChild(tr);
+        }
+        table.appendChild(tbody);
+        tableResp.appendChild(table);
+        card.appendChild(tableResp);
+
+        const actions = document.createElement('div');
+        actions.className = 'grade-actions';
+        const copyBtn = document.createElement('button');
+        copyBtn.className = 'copy-grade-btn';
+        copyBtn.innerHTML = '<span>📋</span> 复制该年级名单截图';
+        copyBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          copyGradeAsImage(grade);
+        });
+        actions.appendChild(copyBtn);
+        card.appendChild(actions);
+
+        resultContainer.appendChild(card);
+      });
+    }
+
+    // ---------- Canvas 绘制（同步修改文案与移除徽章）----------
+    function drawGradeCard(grade) {
+      const data = gradeDataCache.get(grade);
+      if (!data) return null;
+      const { sortedClasses, namesMatrix, maxRows, gradeCount } = data;
+      const currentTime = getCurrentDateTime();
+      const gradeTitle = formatGradeTitle(grade) + '未缴费名单';
+
+      const colWidth = 120;
+      const rowHeight = 38;
+      const headerHeight = 48;
+      const titleHeight = 64;
+      const deadlineHeight = 36;
+      const padding = 24;
+      const tableTop = padding + titleHeight + deadlineHeight + 20;
+
+      const canvasWidth = padding*2 + sortedClasses.length * colWidth;
+      const canvasHeight = tableTop + headerHeight + maxRows * rowHeight + padding + 60;
+
+      const canvas = document.createElement('canvas');
+      canvas.width = canvasWidth;
+      canvas.height = canvasHeight;
+      const ctx = canvas.getContext('2d');
+
+      ctx.fillStyle = '#f6f9fc';
+      ctx.fillRect(0, 0, canvasWidth, canvasHeight);
+      
+      ctx.fillStyle = '#ffffff';
+      ctx.shadowColor = 'rgba(20,50,70,0.08)';
+      ctx.shadowBlur = 20;
+      ctx.shadowOffsetY = 5;
+      ctx.beginPath();
+      ctx.roundRect(12, 12, canvasWidth-24, canvasHeight-24, 32);
+      ctx.fill();
+      ctx.shadowColor = 'transparent';
+      
+      const colorMap = ['#2a6d9c','#1f8a7a','#b47c3c','#9b6b9e','#c05a5a'];
+      const idx = sortedGradesCache.indexOf(grade) % 5;
+      ctx.fillStyle = colorMap[idx];
+      ctx.beginPath();
+      ctx.roundRect(12, 12, canvasWidth-24, 16, 32);
+      ctx.fill();
+      ctx.fillRect(12, 12, canvasWidth-24, 24);
+
+      ctx.font = 'bold 28px "Segoe UI", Roboto, sans-serif';
+      ctx.fillStyle = '#1a3e60';
+      ctx.fillText(gradeTitle, padding, padding + 40);
+      
+      // 截止时间
+      ctx.font = '16px "Segoe UI", sans-serif';
+      ctx.fillStyle = '#2c5a7a';
+      const deadlineStr = `📅 截止${currentTime} 共${gradeCount}人未缴费`;
+      ctx.fillText(deadlineStr, padding, padding + titleHeight + 20);
+
+      let y = tableTop;
+
+      // 表头
+      ctx.fillStyle = '#1e3b55';
+      ctx.shadowBlur = 8;
+      ctx.shadowOffsetY = 2;
+      sortedClasses.forEach((cls, i) => {
+        const x = padding + i * colWidth;
+        ctx.beginPath();
+        ctx.roundRect(x, y, colWidth-6, headerHeight, 18);
+        ctx.fill();
+      });
+      ctx.shadowBlur = 0;
+      ctx.font = 'bold 18px "Segoe UI", sans-serif';
+      ctx.fillStyle = '#ffffff';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      sortedClasses.forEach((cls, i) => {
+        const x = padding + i * colWidth + (colWidth-6)/2;
+        ctx.fillText(cls, x, y + headerHeight/2);
+      });
+
+      y += headerHeight + 6;
+
+      ctx.font = '16px "Segoe UI", sans-serif';
+      ctx.textBaseline = 'middle';
+      for (let r=0; r<maxRows; r++) {
+        for (let c=0; c<sortedClasses.length; c++) {
+          const x = padding + c * colWidth;
+          const cellY = y + r * rowHeight;
+          ctx.fillStyle = '#fbfdff';
+          ctx.shadowBlur = 4;
+          ctx.shadowOffsetY = 1;
+          ctx.beginPath();
+          ctx.roundRect(x, cellY, colWidth-6, rowHeight-2, 14);
+          ctx.fill();
+          ctx.shadowBlur = 0;
+          ctx.strokeStyle = '#eef3f9';
+          ctx.lineWidth = 1;
+          ctx.stroke();
+          
+          const name = (r < namesMatrix[c].length) ? namesMatrix[c][r] : '';
+          ctx.fillStyle = '#173e57';
+          ctx.textAlign = 'center';
+          ctx.fillText(name, x + (colWidth-6)/2, cellY + (rowHeight-2)/2);
+        }
+      }
+
+      ctx.font = 'bold 18px "Segoe UI", sans-serif';
+      ctx.fillStyle = '#2a6d9c';
+      ctx.beginPath();
+      ctx.roundRect(canvasWidth-220, canvasHeight-60, 180, 44, 40);
+      ctx.fill();
+      ctx.fillStyle = '#ffffff';
+      ctx.fillText('📋 名单截图', canvasWidth-130, canvasHeight-38);
+      
+      return canvas;
+    }
+
+    async function copyGradeAsImage(grade) {
+      const canvas = drawGradeCard(grade);
+      if (!canvas) { showToast('❌ 绘制失败', 1500); return; }
+      try {
+        const blob = await new Promise(res => canvas.toBlob(res, 'image/png'));
+        await navigator.clipboard.write([new ClipboardItem({'image/png': blob})]);
+        showToast(`✅ ${formatGradeTitle(grade)}名单截图已复制`);
+      } catch (e) {
+        showToast('❌ 复制失败，可尝试授予剪贴板权限', 2000);
+        console.warn(e);
+      }
+    }
+
+    async function copyAllGrades() {
+      if (sortedGradesCache.length===0) { showToast('暂无数据'); return; }
+      const canvases = sortedGradesCache.map(g => drawGradeCard(g)).filter(c=>c);
+      if (canvases.length===0) return;
+      
+      const maxWidth = Math.max(...canvases.map(c=>c.width));
+      const totalHeight = canvases.reduce((sum,c)=> sum + c.height + 20, 0) + 20;
+      const bigCanvas = document.createElement('canvas');
+      bigCanvas.width = maxWidth;
+      bigCanvas.height = totalHeight;
+      const ctx = bigCanvas.getContext('2d');
+      ctx.fillStyle = '#e9f1f8';
+      ctx.fillRect(0,0,maxWidth,totalHeight);
+      
+      let yOffset = 20;
+      canvases.forEach(canvas => {
+        ctx.drawImage(canvas, (maxWidth-canvas.width)/2, yOffset);
+        yOffset += canvas.height + 20;
+      });
+      
+      try {
+        const blob = await new Promise(res => bigCanvas.toBlob(res, 'image/png'));
+        await navigator.clipboard.write([new ClipboardItem({'image/png': blob})]);
+        showToast('📸 所有年级名单截图已复制');
+      } catch (e) {
+        showToast('❌ 复制失败', 2000);
+      }
+    }
+
+    CanvasRenderingContext2D.prototype.roundRect = function(x, y, w, h, r) {
+      if (w < 2 * r) r = w / 2;
+      if (h < 2 * r) r = h / 2;
+      this.moveTo(x + r, y);
+      this.lineTo(x + w - r, y);
+      this.quadraticCurveTo(x + w, y, x + w, y + r);
+      this.lineTo(x + w, y + h - r);
+      this.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+      this.lineTo(x + r, y + h);
+      this.quadraticCurveTo(x, y + h, x, y + h - r);
+      this.lineTo(x, y + r);
+      this.quadraticCurveTo(x, y, x + r, y);
+      return this;
+    };
+
+    function handleFile(file) {
+      fileNameDisplay.textContent = `📄 ${file.name}`;
+      showStatus('⏳ 解析中…', false);
+      const reader = new FileReader();
+      reader.onload = e => {
+        try {
+          const wb = XLSX.read(new Uint8Array(e.target.result), {type:'array'});
+          const map = parseAndBuildMap(wb);
+          currentGradeMap = map;
+          renderHTML(map);
+          hideStatus();
+        } catch(err) {
+          showStatus(`❌ ${err.message}`, true);
+          resetUI();
+        }
+      };
+      reader.onerror = () => showStatus('❌ 读取失败', true);
+      reader.readAsArrayBuffer(file);
+    }
+
+    function preventDefaults(e) { e.preventDefault(); e.stopPropagation(); }
+    ['dragenter','dragover','dragleave','drop'].forEach(ev=>dropZone.addEventListener(ev,preventDefaults));
+    ['dragenter','dragover'].forEach(ev=>dropZone.addEventListener(ev,()=>dropZone.classList.add('drag-over')));
+    ['dragleave','drop'].forEach(ev=>dropZone.addEventListener(ev,()=>dropZone.classList.remove('drag-over')));
+
+    dropZone.addEventListener('drop', e => {
+      const file = e.dataTransfer.files[0];
+      if (file && /\.(xlsx|xls|csv)$/i.test(file.name)) { resetUI(); handleFile(file); }
+      else showStatus('⚠️ 请上传Excel文件', true);
+    });
+    dropZone.addEventListener('click', ()=>fileInput.click());
+    fileInput.addEventListener('change', e=> {
+      const f = e.target.files[0];
+      if(f){ resetUI(); handleFile(f); }
+      fileInput.value='';
+    });
+    clearBtn.addEventListener('click', ()=>{
+      resetUI();
+      showStatus('已清除', false);
+      setTimeout(hideStatus, 1500);
+    });
+    copyAllBtn.addEventListener('click', copyAllGrades);
+
+    window.addEventListener('load', ()=>{
+      showStatus('✨ 拖拽Excel，表头自动识别', false);
+      setTimeout(hideStatus, 3000);
+    });
+  })();
+</script>
+</body>
+</html>
